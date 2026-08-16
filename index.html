@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="theme-color" content="#0f0f23" />
+  <title>Bool</title>
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+  <canvas id="game" aria-label="Bool game board"></canvas>
+
+  <main id="setup" class="screen">
+    <section class="card">
+      <p class="eyebrow">BOOL</p>
+      <h1>Closest wins.</h1>
+      <label>
+        Player 1
+        <input id="playerName" maxlength="16" autocomplete="nickname" placeholder="Player 1" />
+      </label>
+      <label id="player2Label" class="hidden">
+        Player 2
+        <input id="player2Name" maxlength="16" autocomplete="nickname" placeholder="Player 2" />
+      </label>
+      <button id="playSolo">Play solo</button>
+      <button id="playLocal" class="secondary">Two players on this device</button>
+    </section>
+  </main>
+
+  <section id="hud" class="hud hidden" aria-live="polite">
+    <div class="player-status">
+      <strong id="name">Player 1</strong>
+      <small id="shots">3 shots left</small>
+    </div>
+    <div class="level-status">
+      <small id="level">Level 1</small>
+      <strong id="turn">Your turn</strong>
+    </div>
+    <div class="scoreline">
+      <span id="p1Score">0</span><small id="scoreDivider"> – </small><span id="p2Score">0</span>
+    </div>
+  </section>
+
+  <section id="roundOver" class="screen hidden">
+    <div class="card">
+      <p class="eyebrow">ROUND COMPLETE</p>
+      <h2 id="roundTitle">Score</h2>
+      <p id="roundDetail"></p>
+      <button id="nextLevel">Next level</button>
+      <button id="backToMenu" class="secondary">Main menu</button>
+    </div>
+  </section>
+
+  <div id="power" class="power hidden"><div id="powerFill"></div></div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
