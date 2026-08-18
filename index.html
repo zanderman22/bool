@@ -1,58 +1,83 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <meta name="theme-color" content="#0f0f23" />
-  <title>Bool</title>
-  <link rel="stylesheet" href="/src/styles.css" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
+<meta name="theme-color" content="#0b0b1a" />
+<title>Bool</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230b0b1a'/%3E%3Ccircle cx='12' cy='19' r='6' fill='%23ff416c'/%3E%3Ccircle cx='22' cy='13' r='4' fill='%23ffcc00'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="./src/styles.css" />
 </head>
 <body>
-  <canvas id="game" aria-label="Bool game board"></canvas>
 
-  <main id="setup" class="screen">
-    <section class="card">
-      <p class="eyebrow">BOOL</p>
-      <h1>Closest wins.</h1>
-      <label>
-        Player 1
-        <input id="playerName" maxlength="16" autocomplete="nickname" placeholder="Player 1" />
-      </label>
-      <label id="player2Label" class="hidden">
-        Player 2
-        <input id="player2Name" maxlength="16" autocomplete="nickname" placeholder="Player 2" />
-      </label>
-      <button id="playSolo">Play solo</button>
-      <button id="playLocal" class="secondary">Two players on this device</button>
-    </section>
-  </main>
+<canvas id="c"></canvas>
 
-  <section id="hud" class="hud hidden" aria-live="polite">
-    <div class="player-status">
-      <strong id="name">Player 1</strong>
-      <small id="shots">3 shots left</small>
-    </div>
-    <div class="level-status">
-      <small id="level">Level 1</small>
-      <strong id="turn">Your turn</strong>
-    </div>
-    <div class="scoreline">
-      <span id="p1Score">0</span><small id="scoreDivider"> – </small><span id="p2Score">0</span>
-    </div>
-  </section>
+<!-- Bottom HUD -->
+<div id="hud" class="hud hidden">
+  <div class="side" id="side1">
+    <div class="pname" id="p1Name">You</div>
+    <div class="dots" id="p1Dots"></div>
+  </div>
 
-  <section id="roundOver" class="screen hidden">
-    <div class="card">
-      <p class="eyebrow">ROUND COMPLETE</p>
-      <h2 id="roundTitle">Score</h2>
-      <p id="roundDetail"></p>
-      <button id="nextLevel">Next level</button>
-      <button id="backToMenu" class="secondary">Main menu</button>
-    </div>
-  </section>
+  <div class="centre">
+    <div class="score"><span id="s1">0</span><i>–</i><span id="s2">0</span></div>
+    <div class="turn" id="turnLabel">Your throw</div>
+  </div>
 
-  <div id="power" class="power hidden"><div id="powerFill"></div></div>
+  <div class="side right" id="side2">
+    <div class="pname" id="p2Name">Opponent</div>
+    <div class="dots" id="p2Dots"></div>
+  </div>
+</div>
 
-  <script type="module" src="/src/main.ts"></script>
+<!-- Level banner -->
+<div id="banner" class="banner hidden"><span id="bannerText"></span></div>
+
+<!-- Setup -->
+<section id="screen-setup" class="screen">
+  <div class="card">
+    <p class="eyebrow">BOOL</p>
+    <h1>Closest wins.</h1>
+    <p class="blurb">Pull back, aim, release. Three boules each, nearest to the jack takes the end.</p>
+
+    <label class="field">
+      <span>Your name</span>
+      <input id="name1" maxlength="12" placeholder="You" autocomplete="nickname" />
+    </label>
+
+    <label class="field hidden" id="name2Field">
+      <span>Player two</span>
+      <input id="name2" maxlength="12" placeholder="Opponent" autocomplete="nickname" />
+    </label>
+
+    <button id="btnLocal">Two players</button>
+    <button id="btnSolo" class="secondary">Practise solo</button>
+    <p class="foot">Online play comes later — the engine already records matches as shot events, which is all a networked game needs to send.</p>
+  </div>
+</section>
+
+<!-- End of an end -->
+<section id="screen-endover" class="screen hidden">
+  <div class="card">
+    <p class="eyebrow" id="eoEyebrow">END COMPLETE</p>
+    <h2 id="eoTitle">Result</h2>
+    <p class="blurb" id="eoDetail"></p>
+    <button id="btnNext">Next level</button>
+    <button id="btnQuit" class="secondary">Main menu</button>
+  </div>
+</section>
+
+<!-- Match over -->
+<section id="screen-matchover" class="screen hidden">
+  <div class="card">
+    <p class="eyebrow">MATCH COMPLETE</p>
+    <h1 id="moTitle">Winner</h1>
+    <p class="blurb" id="moDetail"></p>
+    <button id="btnRematch">Rematch</button>
+    <button id="btnQuit2" class="secondary">Main menu</button>
+  </div>
+</section>
+
+<script type="module" src="./src/main.js"></script>
 </body>
 </html>
