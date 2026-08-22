@@ -215,9 +215,16 @@ export function nextEnd(match) {
 /**
  * Rebuild a match from its shot log. Used by the determinism tests, and the
  * mechanism a spectator or a reconnecting player would use to catch up.
+ *
+ * A log can span more than one end -- a real match plays to
+ * RULES.matchTarget across many ends, all under the same shot log -- so
+ * concluding an end here moves on to the next one via nextEnd() (exactly
+ * what btnNext does for local/online play) rather than stopping at the
+ * first end's conclusion. Stops early only if the log itself runs out or
+ * the match is actually won.
  */
-export function replay(log, { levelIndex = 0, mode = 'local', starter = 1 } = {}) {
-  const match = createMatch({ mode, levelIndex, starter });
+export function replay(log, { levelIndex = 0, mode = 'local', starter = 1, names } = {}) {
+  const match = createMatch({ mode, names, levelIndex, starter });
   for (const shot of log) {
     match.current = shot.player;
     match.phase = 'aiming';
@@ -226,7 +233,12 @@ export function replay(log, { levelIndex = 0, mode = 'local', starter = 1 } = {}
     let guard = 0;
     while (!isSettled(match.world) && guard++ < 20000) stepWorld(match.world);
     const next = nextThrower(match);
-    if (next === null) { concludeEnd(match); break; }
+    if (next === null) {
+      concludeEnd(match);
+      if (match.phase === 'matchover') break;
+      nextEnd(match);
+      continue;
+    }
     match.current = next;
     match.phase = 'aiming';
   }

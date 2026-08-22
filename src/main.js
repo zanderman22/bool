@@ -14,6 +14,7 @@ import { createAim } from './input/aim.js';
 import { updateHud, showBanner } from './ui/hud.js';
 import { showScreen } from './ui/screens.js';
 import { levelAt } from './levels/levels.js';
+import { getActiveRoomCode } from './net/session.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('c');
@@ -159,9 +160,23 @@ export function enterOnlineMatch(m, { myPlayer, onLocalShot, onLocalAdvance, onR
   endOnlineMatch(); // replace any previous online session first (e.g. a rematch's new match)
   match = m;
   online = { myPlayer, onLocalShot, onLocalAdvance, onRematch, onMatchOver, cleanup };
-  showScreen(null);
   layout();
-  showBanner(levelAt(match.levelIndex).name);
+  // A freshly-started match always lands in 'aiming'. A *reconstructed* one
+  // (reconnect, build-order step 6) can land here already past that -- e.g.
+  // a refresh right as an end or the whole match concluded -- and the usual
+  // route to these screens (onPhaseChange, below) only fires on a *change*
+  // of phase during the frame loop, which never happens for a phase the
+  // match already started in. Dispatch explicitly instead of assuming
+  // 'aiming'.
+  if (match.phase === 'endover') {
+    showEndOver();
+  } else if (match.phase === 'matchover') {
+    showMatchOver();
+    online.onMatchOver?.(); // in case the original clients' own DB update never landed
+  } else {
+    showScreen(null);
+    showBanner(levelAt(match.levelIndex).name);
+  }
   updateHud(match);
 }
 
@@ -244,11 +259,16 @@ try {
 } catch { /* private mode */ }
 
 // A "?room=CODE" invite link jumps straight to the join screen instead of
-// the usual setup screen. Only pulls in the online module (and its CDN
-// dependency) when actually needed.
+// the usual setup screen; failing that, a room left open last session
+// (reconnect, build-order step 6) is resumed instead. Either way, the online
+// module (and its CDN dependency) is only pulled in when actually needed --
+// getActiveRoomCode() is a plain localStorage read, so a player who never
+// touches online play never loads any net/* code at all.
 const inviteCode = new URLSearchParams(location.search).get('room');
 if (inviteCode) {
   import('./ui/online.js').then((m) => m.openInviteLink(inviteCode));
+} else if (getActiveRoomCode()) {
+  import('./ui/online.js').then((m) => m.resumeSession());
 } else {
   showScreen('setup');
 }

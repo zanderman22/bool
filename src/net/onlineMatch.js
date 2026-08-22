@@ -16,7 +16,7 @@
 // tools/bundle.js's static import graph.
 // ---------------------------------------------------------------------------
 
-import { createMatch } from '../game/match.js';
+import { createMatch, replay } from '../game/match.js';
 import { LEVELS } from '../levels/levels.js';
 import { supabase } from './client.js';
 import { enterOnlineMatch, applyRemoteShot } from '../main.js';
@@ -45,13 +45,6 @@ const seatToPlayer = (seat) => (seat === 0 ? 1 : 2);
  * @param names     { 1: hostName, 2: guestName } for the HUD
  */
 export async function startOnlineMatch({ matchId, levelId, roomCode, mySeat, names }) {
-  const match = createMatch({
-    mode: 'local',
-    names,
-    levelIndex: levelIndexFor(levelId),
-    starter: 1, // seat 0 / host always opens the first end, on both clients
-  });
-
   const myPlayer = seatToPlayer(mySeat);
 
   // This client's own view of how many shots have been applied so far
@@ -127,6 +120,10 @@ export async function startOnlineMatch({ matchId, levelId, roomCode, mySeat, nam
     if (error) console.error('[bool] failed to mark match complete', error);
   }
 
+  // Subscribe *before* fetching whatever shots already exist below, so any
+  // shot that lands in the gap between that fetch and this call still ends
+  // up in `pending` rather than being missed entirely -- the drain() call
+  // right after enterOnlineMatch() flushes it once the match is ready.
   const channel = supabase
     .channel(`match:${matchId}`)
     .on(
@@ -139,6 +136,35 @@ export async function startOnlineMatch({ matchId, levelId, roomCode, mySeat, nam
     )
     .subscribe();
 
+  // Reconnect (build-order step 6): a fresh match has no shots yet, so this
+  // is a no-op there. Otherwise -- a refresh mid-match, on either device --
+  // rebuild exactly where play left off via replay(), the same function the
+  // determinism tests use, rather than starting the match over. `nextSeq`
+  // and `applied` are seeded so this client's own further shots keep
+  // numbering correctly and a Realtime echo of any already-applied shot
+  // doesn't get double-applied.
+  const { data: existing, error: fetchError } = await supabase
+    .from('shots')
+    .select('seq, seat, angle, power')
+    .eq('match_id', matchId)
+    .order('seq', { ascending: true });
+  if (fetchError) console.error('[bool] failed to fetch existing shots for reconnect', fetchError);
+
+  let match;
+  if (existing && existing.length > 0) {
+    const log = existing.map((r) => ({ seq: r.seq, player: seatToPlayer(r.seat), angle: r.angle, power: r.power }));
+    match = replay(log, { levelIndex: levelIndexFor(levelId), mode: 'local', starter: 1, names });
+    nextSeq = existing.length;
+    for (const r of existing) applied.add(r.seq);
+  } else {
+    match = createMatch({
+      mode: 'local',
+      names,
+      levelIndex: levelIndexFor(levelId),
+      starter: 1, // seat 0 / host always opens the first end, on both clients
+    });
+  }
+
   enterOnlineMatch(match, {
     myPlayer,
     onLocalShot,
@@ -147,4 +173,5 @@ export async function startOnlineMatch({ matchId, levelId, roomCode, mySeat, nam
     onMatchOver,
     cleanup: () => supabase.removeChannel(channel),
   });
+  drain(); // flush anything that arrived while the fetch above was in flight
 }

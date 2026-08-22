@@ -11,7 +11,7 @@ import { createWorld, addBall, stepWorld, isSettled, findJack } from '../src/gam
 import { validateLevel } from '../src/levels/schema.js';
 import { LEVELS, levelAt } from '../src/levels/levels.js';
 import { scoreEnd } from '../src/game/scoring.js';
-import { createMatch, applyShot, replay, nextThrower, updateMatch } from '../src/game/match.js';
+import { createMatch, applyShot, replay, nextThrower, updateMatch, nextEnd } from '../src/game/match.js';
 
 let passed = 0, failed = 0;
 const results = [];
@@ -94,6 +94,38 @@ test('replaying the same log twice is bit-identical', () => {
     const b = replay(SAMPLE_LOG, { levelIndex: li });
     eq(snapshot(a), snapshot(b), `level ${LEVELS[li].id} diverged between replays`);
   }
+});
+
+test('replay reconstructs a match spanning more than one end', () => {
+  // A real match plays to RULES.matchTarget over many ends under one shot
+  // log (a rematch is the only thing that starts a *new* log) -- this is
+  // what a reconnecting online client rebuilds from (bool-stage-2-scope.md
+  // step 6), so replay() must carry on past an end's conclusion instead of
+  // stopping there. Verified against a match "played live" end-to-end via
+  // updateMatch()/nextEnd() -- the same functions main.js's own game loop
+  // and "Next" button call -- so this checks replay() reconstructs exactly
+  // what actually happened, not just that it runs without crashing.
+  const levelIndex = 0;
+  const TWO_END_LOG = [...SAMPLE_LOG, ...SAMPLE_LOG.map((s) => ({ ...s, seq: s.seq + 6 }))];
+
+  function playLive(log) {
+    const m = createMatch({ mode: 'local', levelIndex });
+    for (const shot of log) {
+      m.current = shot.player;
+      m.phase = 'aiming';
+      applyShot(m, shot);
+      let guard = 0;
+      while (m.phase === 'simulating' && guard++ < 1000) updateMatch(m, 1);
+      if (m.phase === 'endover') nextEnd(m);
+      if (m.phase === 'matchover') break;
+    }
+    return m;
+  }
+
+  const live = playLive(TWO_END_LOG);
+  const rebuilt = replay(TWO_END_LOG, { levelIndex });
+  eq(snapshot(rebuilt), snapshot(live), 'reconnect replay diverged from a live-played match spanning end(s)');
+  assert(rebuilt.endIndex > 0 || rebuilt.phase === 'matchover', 'replay should have advanced past the first end');
 });
 
 test('simulation is independent of how time is chopped up', () => {

@@ -18,6 +18,7 @@ import {
   getStoredDisplayName, setStoredDisplayName,
 } from '../net/rooms.js';
 import { supabase } from '../net/client.js';
+import { getActiveRoomCode, setActiveRoomCode, clearActiveRoomCode } from '../net/session.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -43,6 +44,7 @@ function leaveRoom() {
   currentRoom = null;
   lastPlayers = [];
   activeMatchId = null;
+  clearActiveRoomCode();
 }
 
 /**
@@ -137,11 +139,45 @@ async function copyInviteLink() {
 
 async function enterRoom(room) {
   currentRoom = room;
+  setActiveRoomCode(room.code);
   $('roomCode').textContent = room.code;
   showRoomErr('');
   showScreen('online-room');
   unsubscribe = subscribeToRoom(room.code, renderSeats);
   unsubscribeMatchStart = subscribeToMatchStart(room.code, handleMatchStart);
+}
+
+/**
+ * Best-effort reconnect after a refresh (build-order step 6): if a room was
+ * left open last session (i.e. the player didn't explicitly leave/quit),
+ * silently rejoin it. joinRoom() already returns the same seat for a uid
+ * that's already a member, so this is exactly the same path a fresh join
+ * takes -- the only new thing here is where the room code comes from.
+ * Whatever happens next (straight into a match already in progress, or
+ * just the lobby if none is active) follows from the normal
+ * subscribeToMatchStart()/handleMatchStart() flow, same as any other entry
+ * into a room. Called from main.js's boot sequence; returns nothing
+ * meaningful -- it either lands somewhere online or falls back to setup.
+ */
+export async function resumeSession() {
+  const code = getActiveRoomCode();
+  if (!code) return;
+  wire();
+  // Immediate feedback before the network round-trip below resolves --
+  // enterRoom() below re-shows the same screen once the real room data is
+  // in, so this is purely to avoid a blank screen during the gap.
+  showScreen('online-room');
+  $('roomCode').textContent = code;
+  showRoomStatus('Reconnecting…');
+  try {
+    const room = await joinRoom(code, { displayName: displayName() });
+    await enterRoom(room);
+  } catch (e) {
+    // Room's gone, or something else went wrong -- fall back to a normal
+    // boot rather than getting stuck on a broken reconnect attempt.
+    clearActiveRoomCode();
+    showScreen('setup');
+  }
 }
 
 /**
