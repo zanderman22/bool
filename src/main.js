@@ -134,6 +134,16 @@ function showMatchOver() {
 $('btnSolo').onclick = () => startMatch('solo');
 $('btnLocal').onclick = () => startMatch('local');
 
+// Online play lives in its own module, loaded only on demand via a dynamic
+// import() -- never a static `import ... from` line -- so tools/bundle.js's
+// dependency walker (which only follows static imports from src/main.js)
+// never has to deal with net/client.js's bare CDN import. See
+// bool-stage-2-supabase-setup.md.
+$('btnOnline').onclick = async () => {
+  const { openOnlineMenu } = await import('./ui/online.js');
+  openOnlineMenu();
+};
+
 $('btnNext').onclick = () => {
   const solo = match.mode === 'solo';
   // A missed par replays the same level rather than advancing.
@@ -163,7 +173,15 @@ try {
   if ($('name2').value) $('name2Field').classList.remove('hidden');
 } catch { /* private mode */ }
 
-showScreen('setup');
+// A "?room=CODE" invite link jumps straight to the join screen instead of
+// the usual setup screen. Only pulls in the online module (and its CDN
+// dependency) when actually needed.
+const inviteCode = new URLSearchParams(location.search).get('room');
+if (inviteCode) {
+  import('./ui/online.js').then((m) => m.openInviteLink(inviteCode));
+} else {
+  showScreen('setup');
+}
 layout();
 
 // Exposed for the browser smoke test (tools/browsertest.js) and for poking at

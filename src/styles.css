@@ -200,3 +200,58 @@ button.secondary {
 }
 
 .foot { margin: 18px 0 0; font-size: 11px; line-height: 1.5; opacity: 0.38; }
+
+/* ---------------- Online lobby ---------------- */
+
+.roomcode {
+  margin: 6px 0 14px;
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+button.small {
+  width: auto;
+  display: inline-block;
+  padding: 9px 18px;
+  font-size: 13px;
+  margin: 0 0 20px;
+}
+
+.seatlist { margin: 4px 0 18px; display: flex; flex-direction: column; gap: 8px; }
+
+.seat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 700;
+}
+.seat .dot2 { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 255, 255, 0.2); flex-shrink: 0; margin-right: 10px; }
+.seat.filled .dot2 { background: var(--p2); box-shadow: 0 0 8px var(--p2); }
+.seat.you .dot2 { background: var(--p1); box-shadow: 0 0 8px var(--p1); }
+.seat .who { display: flex; align-items: center; overflow: hidden; }
+.seat .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat .tag { opacity: 0.5; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+button:disabled:active { transform: none; }
+
+.err {
+  margin: -6px 0 14px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: rgba(255, 65, 108, 0.14);
+  border: 1px solid rgba(255, 65, 108, 0.35);
+  color: #ffb3c2;
+  font-size: 13px;
+  text-align: left;
+}

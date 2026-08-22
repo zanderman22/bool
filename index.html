@@ -52,7 +52,49 @@
 
     <button id="btnLocal">Two players</button>
     <button id="btnSolo" class="secondary">Practise solo</button>
-    <p class="foot">Online play comes later — the engine already records matches as shot events, which is all a networked game needs to send.</p>
+    <button id="btnOnline" class="secondary">Play online</button>
+  </div>
+</section>
+
+<!-- Online: create or join -->
+<section id="screen-online-menu" class="screen hidden">
+  <div class="card">
+    <p class="eyebrow">ONLINE</p>
+    <h2>Play a friend</h2>
+    <p class="blurb">Create a room and share the code, or join one you've been sent.</p>
+    <button id="btnOnlineCreate">Create room</button>
+    <button id="btnOnlineJoin" class="secondary">Join with a code</button>
+    <button id="btnOnlineBack1" class="secondary">Back</button>
+  </div>
+</section>
+
+<!-- Online: enter a code -->
+<section id="screen-online-join" class="screen hidden">
+  <div class="card">
+    <p class="eyebrow">JOIN ROOM</p>
+    <h2>Enter the code</h2>
+    <label class="field">
+      <span>Room code</span>
+      <input id="joinCode" maxlength="9" placeholder="BOLD-4F2K" autocapitalize="characters" autocomplete="off" />
+    </label>
+    <p class="err hidden" id="joinErr"></p>
+    <button id="btnJoinSubmit">Join</button>
+    <button id="btnOnlineBack2" class="secondary">Back</button>
+  </div>
+</section>
+
+<!-- Online: waiting room / lobby -->
+<section id="screen-online-room" class="screen hidden">
+  <div class="card">
+    <p class="eyebrow">ROOM CODE</p>
+    <div class="roomcode" id="roomCode">----</div>
+    <button id="btnCopyLink" class="secondary small">Copy invite link</button>
+
+    <div class="seatlist" id="seatList"></div>
+
+    <p class="err hidden" id="roomErr"></p>
+    <button id="btnStartMatch" disabled>Waiting for opponent…</button>
+    <button id="btnLeaveRoom" class="secondary">Leave room</button>
   </div>
 </section>
 
