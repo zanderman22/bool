@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------------------
-// Online lobby: create/join a room, watch seats fill, and (for now) prove a
-// match row can be created once both seats are taken.
+// Online lobby: create/join a room, watch seats fill, and hand off to a live
+// match (src/net/onlineMatch.js) once both seats are taken and either player
+// clicks "start match".
 //
 // This file is loaded ONLY via a dynamic import() from main.js -- never a
 // static `import ... from` line. tools/bundle.js's dependency walker only
@@ -8,24 +9,23 @@
 // as that stays true, this file (and its own imports, including net/client.js's
 // bare CDN import) never enters dist/bool.html's build graph. See
 // bool-stage-2-supabase-setup.md for why that matters.
-//
-// Actually playing an online match -- feeding remote shots through the same
-// applyShot()/replay() the local game already uses -- is the next build
-// step (onlineMatch.js). This file only proves the room/presence plumbing:
-// two browsers can create/join a room, see each other's seat fill, and a
-// match row can be created once both are seated.
 // ---------------------------------------------------------------------------
 
 import { showScreen } from './screens.js';
 import { levelAt } from '../levels/levels.js';
-import { createRoom, joinRoom, subscribeToRoom, getStoredDisplayName, setStoredDisplayName } from '../net/rooms.js';
+import {
+  createRoom, joinRoom, subscribeToRoom, subscribeToMatchStart,
+  getStoredDisplayName, setStoredDisplayName,
+} from '../net/rooms.js';
 import { supabase } from '../net/client.js';
 
 const $ = (id) => document.getElementById(id);
 
 let wired = false;
 let unsubscribe = null;
-let currentRoom = null; // { code, uid, seat? }
+let unsubscribeMatchStart = null;
+let currentRoom = null; // { code, uid, seat }
+let lastPlayers = [];   // most recent seat list, for the match's display names
 
 function displayName() {
   const typed = $('name1').value.trim();
@@ -35,10 +35,13 @@ function displayName() {
 
 function leaveRoom() {
   if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+  if (unsubscribeMatchStart) { unsubscribeMatchStart(); unsubscribeMatchStart = null; }
   currentRoom = null;
+  lastPlayers = [];
 }
 
 function renderSeats(players) {
+  lastPlayers = players;
   const seatList = $('seatList');
   seatList.innerHTML = '';
   for (let seat = 0; seat < 2; seat++) {
@@ -122,6 +125,26 @@ async function enterRoom(room) {
   showRoomErr('');
   showScreen('online-room');
   unsubscribe = subscribeToRoom(room.code, renderSeats);
+  unsubscribeMatchStart = subscribeToMatchStart(room.code, handleMatchStart);
+}
+
+/** Fires (on both clients) once a `matches` row appears for this room. */
+async function handleMatchStart(matchRow) {
+  if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+  if (unsubscribeMatchStart) { unsubscribeMatchStart(); unsubscribeMatchStart = null; }
+
+  const host = lastPlayers.find((p) => p.seat === 0);
+  const guest = lastPlayers.find((p) => p.seat === 1);
+  const names = { 1: host?.display_name || 'Host', 2: guest?.display_name || 'Guest' };
+
+  const { startOnlineMatch } = await import('../net/onlineMatch.js');
+  await startOnlineMatch({
+    matchId: matchRow.id,
+    levelId: matchRow.level_id,
+    mySeat: currentRoom.seat,
+    names,
+  });
+  currentRoom = null;
 }
 
 function wire() {
@@ -180,19 +203,14 @@ function wire() {
     showRoomStatus('');
     $('btnStartMatch').disabled = true;
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('matches')
-        .insert({ room_id: currentRoom.code, level_id: levelAt(0).id, status: 'active' })
-        .select()
-        .single();
+        .insert({ room_id: currentRoom.code, level_id: levelAt(0).id, status: 'active' });
       if (error) throw error;
-      // Online gameplay itself (feeding shots through onlineMatch.js into the
-      // same applyShot()/replay() the local game uses) is the next build
-      // step -- this confirms the room/presence plumbing works end to end:
-      // both seats connected and a match row created. Non-blocking status
-      // text, not alert() -- a blocking dialog is bad UX and (worse) freezes
-      // the tab for anything driving the page programmatically.
-      showRoomStatus(`Match created (${data.id.slice(0, 8)}…). Online gameplay wiring is next.`);
+      // Both clients -- including this one -- transition into the match via
+      // the shared subscribeToMatchStart() listener reacting to this insert,
+      // not from here directly, so both sides enter from the same event.
+      showRoomStatus('Match starting…');
     } catch (e) {
       showRoomErr('Could not start the match: ' + (e?.message || e));
       $('btnStartMatch').disabled = false;

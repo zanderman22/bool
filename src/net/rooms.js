@@ -69,7 +69,7 @@ export async function createRoom({ levelId, displayName }) {
     });
     if (seatError) throw seatError;
 
-    return { code, uid: myUid };
+    return { code, uid: myUid, seat: 0 };
   }
   throw new Error('Could not allocate a room code after several attempts');
 }
@@ -145,4 +145,47 @@ export function subscribeToRoom(code, onChange) {
     cancelled = true;
     supabase.removeChannel(channel);
   };
+}
+
+/**
+ * Notify when a `matches` row appears for this room (i.e. either player has
+ * clicked "start match"). Realtime delivers the INSERT to every subscriber
+ * on the room -- including whoever made it -- so both clients transition
+ * into the match from the same event; the "start match" button itself does
+ * nothing but the insert. Also checks for an already-existing active match
+ * once, in case one was created a moment before this subscription was set
+ * up. Fires at most once; returns an unsubscribe function.
+ */
+export function subscribeToMatchStart(code, onMatchStart) {
+  let handled = false;
+  const fire = (row) => {
+    if (handled || !row) return;
+    handled = true;
+    onMatchStart(row);
+  };
+
+  async function checkExisting() {
+    const { data } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('room_id', code)
+      .eq('status', 'active')
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    fire(data);
+  }
+
+  const channel = supabase
+    .channel(`room-matches:${code}`)
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'matches', filter: `room_id=eq.${code}` },
+      (payload) => fire(payload.new),
+    )
+    .subscribe();
+
+  checkExisting();
+
+  return () => supabase.removeChannel(channel);
 }
