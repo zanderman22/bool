@@ -1,10 +1,20 @@
 :root {
-  --p1: #ff416c;
-  --p2: #43e97b;
-  --jack: #ffcc00;
-  --bg: #0b0b1a;
-  --glass: rgba(14, 14, 32, 0.82);
-  --line: rgba(255, 255, 255, 0.12);
+  --p1: #F5811E;
+  --p2: #9B3FC4;
+  --jack: #F2453F;
+  --success: #2FBF71;
+
+  --bg: #0B3F3B;
+  --glass: rgba(9, 45, 42, 0.78);
+  --overlay: rgba(7, 40, 37, 0.78);
+  --line: rgba(255, 255, 255, 0.14);
+
+  --card-bg: #FFF8EE;
+  --card-text: #123B38;
+  --card-muted: rgba(18, 59, 56, 0.6);
+  --card-line: rgba(18, 59, 56, 0.14);
+  --card-field-bg: rgba(18, 59, 56, 0.06);
+
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -127,7 +137,7 @@ canvas {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(6, 6, 16, 0.72);
+  background: var(--overlay);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   z-index: 30;
@@ -138,9 +148,10 @@ canvas {
   max-width: 340px;
   padding: 30px 26px;
   border-radius: 26px;
-  background: rgba(20, 20, 44, 0.94);
-  border: 1px solid var(--line);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  background: var(--card-bg);
+  color: var(--card-text);
+  border: 1px solid var(--card-line);
+  box-shadow: 0 24px 60px rgba(6, 34, 31, 0.35);
   text-align: center;
 }
 
@@ -149,13 +160,13 @@ canvas {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.22em;
-  opacity: 0.5;
+  color: var(--p1);
 }
 
-.card h1 { margin: 0 0 10px; font-size: 30px; letter-spacing: -0.02em; }
-.card h2 { margin: 0 0 10px; font-size: 23px; }
+.card h1 { margin: 0 0 10px; font-size: 30px; letter-spacing: -0.02em; color: var(--card-text); }
+.card h2 { margin: 0 0 10px; font-size: 23px; color: var(--card-text); }
 
-.blurb { margin: 0 0 20px; font-size: 14px; line-height: 1.5; opacity: 0.68; }
+.blurb { margin: 0 0 20px; font-size: 14px; line-height: 1.5; color: var(--card-muted); }
 
 .field { display: block; text-align: left; margin-bottom: 14px; }
 .field span {
@@ -163,19 +174,20 @@ canvas {
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  opacity: 0.5;
+  color: var(--card-muted);
   margin-bottom: 6px;
 }
 .field input {
   width: 100%;
   padding: 13px 15px;
   border-radius: 13px;
-  border: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.35);
-  color: #fff;
+  border: 1px solid var(--card-line);
+  background: var(--card-field-bg);
+  color: var(--card-text);
   font-size: 16px;
   font-family: inherit;
 }
+.field input::placeholder { color: var(--card-muted); }
 .field input:focus { outline: none; border-color: var(--p1); }
 
 button {
@@ -184,22 +196,24 @@ button {
   padding: 15px 22px;
   border: none;
   border-radius: 999px;
-  background: #fff;
-  color: #0b0b1a;
+  background: var(--p1);
+  color: #fff;
   font-family: inherit;
   font-size: 16px;
   font-weight: 800;
   cursor: pointer;
+  box-shadow: 0 10px 22px rgba(245, 129, 30, 0.35);
   transition: transform 0.08s;
 }
 button:active { transform: scale(0.97); }
 button.secondary {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--card-text);
+  border: 1.5px solid var(--card-line);
+  box-shadow: none;
 }
 
-.foot { margin: 18px 0 0; font-size: 11px; line-height: 1.5; opacity: 0.38; }
+.foot { margin: 18px 0 0; font-size: 11px; line-height: 1.5; color: var(--card-muted); opacity: 0.8; }
 
 /* ---------------- Online lobby ---------------- */
 
@@ -209,6 +223,7 @@ button.secondary {
   font-weight: 900;
   letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
+  color: var(--card-text);
 }
 
 button.small {
@@ -217,6 +232,9 @@ button.small {
   padding: 9px 18px;
   font-size: 13px;
   margin: 0 0 20px;
+  box-shadow: none;
+  background: var(--card-field-bg);
+  color: var(--card-text);
 }
 
 .seatlist { margin: 4px 0 18px; display: flex; flex-direction: column; gap: 8px; }
@@ -227,21 +245,23 @@ button.small {
   justify-content: space-between;
   padding: 12px 14px;
   border-radius: 13px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--line);
+  background: var(--card-field-bg);
+  border: 1px solid var(--card-line);
   font-size: 14px;
   font-weight: 700;
+  color: var(--card-text);
 }
-.seat .dot2 { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 255, 255, 0.2); flex-shrink: 0; margin-right: 10px; }
+.seat .dot2 { width: 9px; height: 9px; border-radius: 50%; background: rgba(18, 59, 56, 0.2); flex-shrink: 0; margin-right: 10px; }
 .seat.filled .dot2 { background: var(--p2); box-shadow: 0 0 8px var(--p2); }
 .seat.you .dot2 { background: var(--p1); box-shadow: 0 0 8px var(--p1); }
 .seat .who { display: flex; align-items: center; overflow: hidden; }
 .seat .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.seat .tag { opacity: 0.5; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.seat .tag { opacity: 0.6; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
 
 button:disabled {
   opacity: 0.45;
   cursor: default;
+  box-shadow: none;
 }
 button:disabled:active { transform: none; }
 
@@ -249,9 +269,9 @@ button:disabled:active { transform: none; }
   margin: -6px 0 14px;
   padding: 10px 12px;
   border-radius: 11px;
-  background: rgba(255, 65, 108, 0.14);
-  border: 1px solid rgba(255, 65, 108, 0.35);
-  color: #ffb3c2;
+  background: rgba(242, 69, 63, 0.1);
+  border: 1px solid rgba(242, 69, 63, 0.3);
+  color: #B4241D;
   font-size: 13px;
   text-align: left;
 }
@@ -260,9 +280,9 @@ button:disabled:active { transform: none; }
   margin: -6px 0 14px;
   padding: 10px 12px;
   border-radius: 11px;
-  background: rgba(67, 233, 123, 0.12);
-  border: 1px solid rgba(67, 233, 123, 0.35);
-  color: #b6f3cc;
+  background: rgba(47, 191, 113, 0.12);
+  border: 1px solid rgba(47, 191, 113, 0.35);
+  color: #1E8452;
   font-size: 13px;
   text-align: left;
 }

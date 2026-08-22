@@ -169,6 +169,8 @@ function drawObstacle(ctx, o) {
       ctx.shadowColor = THEME.wallEdge;
       ctx.shadowBlur = 18;
       ctx.fill();
+      ctx.shadowBlur = 0;
+      drawWallStripes(ctx, o);
       break;
     }
     case 'moat': {
@@ -208,6 +210,29 @@ function drawObstacle(ctx, o) {
       break;
     }
   }
+  ctx.restore();
+}
+
+/**
+ * Diagonal candy stripes over a wall, clipped to its rounded rect. Purely a
+ * surface treatment layered on top of the solid fill above -- the collision
+ * geometry (o.x/o.y/o.w/o.h) is untouched.
+ */
+function drawWallStripes(ctx, o) {
+  ctx.save();
+  roundRect(ctx, o.x, o.y, o.w, o.h, o.cr || 6);
+  ctx.clip();
+
+  ctx.strokeStyle = THEME.wallStripe;
+  ctx.lineWidth = Math.max(6, Math.min(o.w, o.h) * 0.22);
+  const step = ctx.lineWidth * 2;
+  const span = o.w + o.h; // long enough to cover the rect at 45 degrees
+  ctx.beginPath();
+  for (let d = -span; d < span; d += step) {
+    ctx.moveTo(o.x + d, o.y);
+    ctx.lineTo(o.x + d + o.h, o.y + o.h);
+  }
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -293,7 +318,7 @@ function drawAim(ctx, aim) {
   ctx.restore();
 }
 
-const powerColor = (p) => (p < 0.55 ? '#7ef7a5' : p < 0.85 ? '#ffd54a' : '#ff416c');
+const powerColor = (p) => (p < 0.55 ? '#7ef7a5' : p < 0.85 ? '#ffd54a' : THEME.jack);
 
 /** Blend two hex colours. Only used for shading, never in simulation. */
 function mix(a, b, t) {
