@@ -255,3 +255,14 @@ button:disabled:active { transform: none; }
   font-size: 13px;
   text-align: left;
 }
+
+.status {
+  margin: -6px 0 14px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: rgba(67, 233, 123, 0.12);
+  border: 1px solid rgba(67, 233, 123, 0.35);
+  color: #b6f3cc;
+  font-size: 13px;
+  text-align: left;
+}

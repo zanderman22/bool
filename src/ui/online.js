@@ -81,6 +81,18 @@ function showJoinErr(msg) {
   el.classList.toggle('hidden', !msg);
 }
 
+function showMenuErr(msg) {
+  const el = $('menuErr');
+  el.textContent = msg || '';
+  el.classList.toggle('hidden', !msg);
+}
+
+function showRoomStatus(msg) {
+  const el = $('roomStatus');
+  el.textContent = msg || '';
+  el.classList.toggle('hidden', !msg);
+}
+
 function inviteLink(code) {
   const url = new URL(location.href);
   url.search = '';
@@ -117,19 +129,21 @@ function wire() {
   wired = true;
 
   $('btnOnlineCreate').onclick = async () => {
+    showMenuErr('');
     $('btnOnlineCreate').disabled = true;
     try {
       const room = await createRoom({ levelId: levelAt(0).id, displayName: displayName() });
       await enterRoom(room);
     } catch (e) {
       showScreen('online-menu');
-      alert('Could not create a room: ' + (e?.message || e));
+      showMenuErr('Could not create a room: ' + (e?.message || e));
     } finally {
       $('btnOnlineCreate').disabled = false;
     }
   };
 
   $('btnOnlineJoin').onclick = () => {
+    showMenuErr('');
     showJoinErr('');
     showScreen('online-join');
     $('joinCode').focus();
@@ -162,6 +176,8 @@ function wire() {
 
   $('btnStartMatch').onclick = async () => {
     if (!currentRoom) return;
+    showRoomErr('');
+    showRoomStatus('');
     $('btnStartMatch').disabled = true;
     try {
       const { data, error } = await supabase
@@ -170,13 +186,15 @@ function wire() {
         .select()
         .single();
       if (error) throw error;
-      alert(
-        `Match created (${data.id.slice(0, 8)}…). Online gameplay wiring is the next build ` +
-        `step -- this confirms both seats are connected and a match row can be created.`
-      );
+      // Online gameplay itself (feeding shots through onlineMatch.js into the
+      // same applyShot()/replay() the local game uses) is the next build
+      // step -- this confirms the room/presence plumbing works end to end:
+      // both seats connected and a match row created. Non-blocking status
+      // text, not alert() -- a blocking dialog is bad UX and (worse) freezes
+      // the tab for anything driving the page programmatically.
+      showRoomStatus(`Match created (${data.id.slice(0, 8)}…). Online gameplay wiring is next.`);
     } catch (e) {
       showRoomErr('Could not start the match: ' + (e?.message || e));
-    } finally {
       $('btnStartMatch').disabled = false;
     }
   };
@@ -184,7 +202,7 @@ function wire() {
 
 export function openOnlineMenu() {
   wire();
-  showRoomErr('');
+  showMenuErr('');
   showScreen('online-menu');
 }
 
