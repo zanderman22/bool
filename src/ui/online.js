@@ -194,8 +194,26 @@ async function handleMatchStart(matchRow) {
 
   if (unsubscribe) { unsubscribe(); unsubscribe = null; }
 
-  const host = lastPlayers.find((p) => p.seat === 0);
-  const guest = lastPlayers.find((p) => p.seat === 1);
+  // lastPlayers is normally populated well before this fires (a human
+  // clicking "Start match" takes far longer than subscribeToRoom's own
+  // first fetch), but on reconnect this can run the instant the room is
+  // entered -- subscribeToMatchStart's checkExisting() finding an
+  // already-active match races subscribeToRoom's own initial fetch, and
+  // can win it, leaving lastPlayers still empty. Fetch directly whenever
+  // it doesn't yet have both seats, rather than risk real names showing as
+  // the "Host"/"Guest" placeholders.
+  let players = lastPlayers;
+  if (players.length < 2) {
+    const { data } = await supabase
+      .from('room_players')
+      .select('seat, uid, display_name')
+      .eq('room_id', currentRoom.code)
+      .order('seat', { ascending: true });
+    if (data) players = data;
+  }
+
+  const host = players.find((p) => p.seat === 0);
+  const guest = players.find((p) => p.seat === 1);
   const names = { 1: host?.display_name || 'Host', 2: guest?.display_name || 'Guest' };
 
   const { startOnlineMatch } = await import('../net/onlineMatch.js');
