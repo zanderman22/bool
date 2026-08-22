@@ -26,6 +26,10 @@ let unsubscribe = null;
 let unsubscribeMatchStart = null;
 let currentRoom = null; // { code, uid, seat }
 let lastPlayers = [];   // most recent seat list, for the match's display names
+let activeMatchId = null; // the match we're currently in/entering, so a
+                           // duplicate delivery of the same row (checkExisting
+                           // racing the live INSERT) or an echo doesn't
+                           // re-enter the same match twice
 
 function displayName() {
   const typed = $('name1').value.trim();
@@ -38,6 +42,18 @@ function leaveRoom() {
   if (unsubscribeMatchStart) { unsubscribeMatchStart(); unsubscribeMatchStart = null; }
   currentRoom = null;
   lastPlayers = [];
+  activeMatchId = null;
+}
+
+/**
+ * Fully leave the online session: called when the player quits an online
+ * match back to setup (src/main.js's endOnlineMatch() only tears down the
+ * current match's shots channel -- this is the separate "leave the room
+ * entirely" teardown, since the room-level subscription deliberately
+ * outlives any one match so a rematch can still be picked up).
+ */
+export function leaveOnlineSession() {
+  leaveRoom();
 }
 
 function renderSeats(players) {
@@ -128,10 +144,19 @@ async function enterRoom(room) {
   unsubscribeMatchStart = subscribeToMatchStart(room.code, handleMatchStart);
 }
 
-/** Fires (on both clients) once a `matches` row appears for this room. */
+/**
+ * Fires (on both clients) every time a `matches` row appears for this room --
+ * the first "start match" and every later rematch alike. The room-presence
+ * subscription is only needed for the lobby's seat list, so it's dropped
+ * here; the match-start subscription itself and `currentRoom` stay alive for
+ * the whole session so a rematch (a fresh `matches` row for the same room)
+ * still gets picked up without rejoining anything.
+ */
 async function handleMatchStart(matchRow) {
+  if (matchRow.id === activeMatchId) return; // already in this one
+  activeMatchId = matchRow.id;
+
   if (unsubscribe) { unsubscribe(); unsubscribe = null; }
-  if (unsubscribeMatchStart) { unsubscribeMatchStart(); unsubscribeMatchStart = null; }
 
   const host = lastPlayers.find((p) => p.seat === 0);
   const guest = lastPlayers.find((p) => p.seat === 1);
@@ -141,10 +166,10 @@ async function handleMatchStart(matchRow) {
   await startOnlineMatch({
     matchId: matchRow.id,
     levelId: matchRow.level_id,
+    roomCode: currentRoom.code,
     mySeat: currentRoom.seat,
     names,
   });
-  currentRoom = null;
 }
 
 function wire() {

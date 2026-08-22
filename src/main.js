@@ -22,11 +22,13 @@ const renderer = createRenderer(canvas);
 const fx = createEffects();
 let match = null;
 
-// Set only while an online match (src/net/onlineMatch.js) is live. `myPlayer`
-// is 1 or 2 -- whichever seat this device occupies in the room -- and gates
-// the local player's own swipes to their own turn; `onLocalShot` is how a
-// swipe reaches the network instead of applying straight to `match`.
-// `cleanup` tears down the Supabase Realtime subscription.
+// Set only while an online match (src/net/onlineMatch.js) is live:
+// { myPlayer, onLocalShot, onLocalAdvance, onRematch, onMatchOver, cleanup }.
+// `myPlayer` is 1 or 2 -- whichever seat this device occupies in the room --
+// and gates the local player's own swipes to their own turn; `onLocalShot` is
+// how a swipe reaches the network instead of applying straight to `match`.
+// `cleanup` tears down this match's Supabase Realtime subscription (called
+// whenever a new online match replaces this one, and on quitting outright).
 let online = null;
 
 function endOnlineMatch() {
@@ -91,7 +93,7 @@ requestAnimationFrame(frame);
 function onPhaseChange(from) {
   if (from === 'simulating' && match.phase === 'aiming') aim.cancel();
   if (match.phase === 'endover') showEndOver();
-  if (match.phase === 'matchover') showMatchOver();
+  if (match.phase === 'matchover') { showMatchOver(); online?.onMatchOver?.(); }
 }
 
 // --- screens ---------------------------------------------------------------
@@ -148,26 +150,33 @@ function showMatchOver() {
 
 // --- online match handoff ---------------------------------------------------
 //
-// src/net/onlineMatch.js owns the Supabase side (submitting/consuming shots);
-// these two functions are the only points where it touches this module's
-// private `match`/`online` state, so it never needs main.js's internals
-// beyond what's exported here.
+// src/net/onlineMatch.js owns the Supabase side (submitting/consuming shots,
+// rematch, marking a match complete); these two functions are the only
+// points where it touches this module's private `match`/`online` state, so
+// it never needs main.js's internals beyond what's exported here.
 
-export function enterOnlineMatch(m, { myPlayer, onLocalShot, cleanup }) {
-  endOnlineMatch(); // replace any previous online session first
+export function enterOnlineMatch(m, { myPlayer, onLocalShot, onLocalAdvance, onRematch, onMatchOver, cleanup }) {
+  endOnlineMatch(); // replace any previous online session first (e.g. a rematch's new match)
   match = m;
-  online = { myPlayer, onLocalShot, cleanup };
+  online = { myPlayer, onLocalShot, onLocalAdvance, onRematch, onMatchOver, cleanup };
   showScreen(null);
   layout();
   showBanner(levelAt(match.levelIndex).name);
   updateHud(match);
 }
 
-/** Apply a shot -- local or remote -- to the live online match. */
+/**
+ * Apply a shot -- local or remote -- to the live online match. Returns the
+ * spawned ball on success, or null if applyShot() rejected it (e.g. this
+ * client hasn't itself advanced past its own "end over" screen yet for a
+ * new end) -- onlineMatch.js's drain() uses that to know whether to retry
+ * rather than treat the shot as consumed.
+ */
 export function applyRemoteShot(shot) {
-  if (!match) return;
-  applyShot(match, shot);
-  updateHud(match);
+  if (!match) return null;
+  const result = applyShot(match, shot);
+  if (result) updateHud(match);
+  return result;
 }
 
 // --- wiring ----------------------------------------------------------------
@@ -186,11 +195,11 @@ $('btnOnline').onclick = async () => {
 };
 
 $('btnNext').onclick = () => {
-  // Continuing past one end, or rematching, over the network isn't wired up
-  // yet (build-order step 5) -- for now this just falls back to advancing
-  // the shared local `match` object with no further shot exchange, which
-  // only makes sense for the player who happens to click it locally.
-  endOnlineMatch();
+  // Continuing to the next end needs no network coordination at all: both
+  // clients already hold identical match state (same scores, same shot log)
+  // purely from determinism, so nextEnd()/startEnd() -- both pure functions
+  // of that already-synced state -- land in the same place regardless of
+  // which client's player clicks first or when.
   const solo = match.mode === 'solo';
   // A missed par replays the same level rather than advancing.
   if (solo && !match.lastEnd.isVoid && !match.lastEnd.cleared) startEnd(match);
@@ -199,11 +208,26 @@ $('btnNext').onclick = () => {
   layout();
   showBanner(levelAt(match.levelIndex).name);
   updateHud(match);
+  // If the opponent's first shot of this new end arrived while this client
+  // was still on its own "end over" screen, it's sitting buffered -- now
+  // that this client has caught up, apply it.
+  online?.onLocalAdvance?.();
 };
 
-$('btnRematch').onclick = () => { endOnlineMatch(); startMatch(match.mode); };
-$('btnQuit').onclick = () => { endOnlineMatch(); showScreen('setup'); };
-$('btnQuit2').onclick = () => { endOnlineMatch(); showScreen('setup'); };
+$('btnRematch').onclick = () => {
+  if (online) { online.onRematch(); return; } // new `matches` row; both clients transition together
+  startMatch(match.mode);
+};
+
+function quitToSetup() {
+  if (online) {
+    endOnlineMatch(); // tears down this match's shots channel
+    import('./ui/online.js').then((m) => m.leaveOnlineSession()); // leaves the room/rematch listener too
+  }
+  showScreen('setup');
+}
+$('btnQuit').onclick = quitToSetup;
+$('btnQuit2').onclick = quitToSetup;
 
 $('btnLocal').addEventListener('pointerenter', revealSecondName);
 $('name1').addEventListener('focus', revealSecondName);

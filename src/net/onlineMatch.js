@@ -14,11 +14,6 @@
 // `import ... from` line anywhere in this chain. See
 // bool-stage-2-supabase-setup.md for why net/* code must never enter
 // tools/bundle.js's static import graph.
-//
-// What's deliberately NOT here yet (build-order step 5): turn-gating UI
-// beyond disabling the swipe, match completion syncing, rematch. A match
-// plays through one end correctly; continuing past that falls back to
-// main.js's local-only "next end"/"rematch" handling.
 // ---------------------------------------------------------------------------
 
 import { createMatch } from '../game/match.js';
@@ -37,14 +32,19 @@ function levelIndexFor(levelId) {
 const seatToPlayer = (seat) => (seat === 0 ? 1 : 2);
 
 /**
- * Start a live online match.
+ * Start a live online match (the first end, a continuation past it, and a
+ * fresh rematch all funnel through here -- src/ui/online.js's
+ * subscribeToMatchStart listener calls this again for every new `matches`
+ * row on the room).
  *
- * @param matchId  the `matches` row id (shots reference this)
- * @param levelId  which level, from the `matches` row
- * @param mySeat   0 (host) or 1 (guest) -- this device's seat in the room
- * @param names    { 1: hostName, 2: guestName } for the HUD
+ * @param matchId   the `matches` row id (shots reference this)
+ * @param levelId   which level, from the `matches` row
+ * @param roomCode  the room this match belongs to (needed to insert a
+ *                  rematch's `matches` row later)
+ * @param mySeat    0 (host) or 1 (guest) -- this device's seat in the room
+ * @param names     { 1: hostName, 2: guestName } for the HUD
  */
-export async function startOnlineMatch({ matchId, levelId, mySeat, names }) {
+export async function startOnlineMatch({ matchId, levelId, roomCode, mySeat, names }) {
   const match = createMatch({
     mode: 'local',
     names,
@@ -57,19 +57,29 @@ export async function startOnlineMatch({ matchId, levelId, mySeat, names }) {
   // This client's own view of how many shots have been applied so far
   // (locally or remotely) -- deliberately not read off `match` itself, so
   // this module never needs access to main.js's private match state beyond
-  // the two functions imported above.
+  // the functions imported above.
   let nextSeq = 0;
-  const applied = new Set();   // seqs already applied -- dedupes our own echo
+  const applied = new Set();   // seqs successfully applied -- dedupes our own echo
   const pending = new Map();   // seq -> row, for out-of-order Realtime delivery
 
+  // Draining can stall: the very first shot of a new end always belongs to
+  // whoever won the last one, and if it arrives before *this* client has
+  // clicked past their own "end over" screen, applyRemoteShot() rejects it
+  // (match.phase isn't 'aiming' yet for the new end). Rather than treat that
+  // rejection as consumed, leave it in `pending` and stop -- main.js calls
+  // onLocalAdvance() once this client's own player clicks "Next", which
+  // retries the drain now that the match is ready for it. Turn gating caps
+  // this at one stalled shot at a time: the other seat physically cannot
+  // throw until it's their turn, which it isn't until this shot lands.
   function drain() {
     while (pending.has(nextSeq)) {
       const row = pending.get(nextSeq);
-      pending.delete(nextSeq);
       if (!applied.has(row.seq)) {
+        const ok = applyRemoteShot({ player: seatToPlayer(row.seat), angle: row.angle, power: row.power });
+        if (!ok) break;
         applied.add(row.seq);
-        applyRemoteShot({ player: seatToPlayer(row.seat), angle: row.angle, power: row.power });
       }
+      pending.delete(nextSeq);
       nextSeq++;
     }
   }
@@ -89,6 +99,34 @@ export async function startOnlineMatch({ matchId, levelId, mySeat, names }) {
       });
   }
 
+  /** Called once this client's own player clicks past their endover screen. */
+  function onLocalAdvance() {
+    drain();
+  }
+
+  /** "Rematch": a fresh `matches` row for the same room. Both clients --
+   *  including whoever didn't click -- transition via the room's persistent
+   *  subscribeToMatchStart listener reacting to this insert, same as the
+   *  very first "start match". */
+  async function onRematch() {
+    const { error } = await supabase
+      .from('matches')
+      .insert({ room_id: roomCode, level_id: LEVELS[0].id, status: 'active' });
+    if (error) console.error('[bool] failed to start rematch', error);
+  }
+
+  /** Best-effort: mark this match complete in the DB once it concludes.
+   *  Both clients call this independently with the same (deterministic)
+   *  result -- a harmless redundant update, not a race. */
+  async function onMatchOver() {
+    const winnerPlayer = match.scores[1] >= match.scores[2] ? 1 : 2;
+    const { error } = await supabase
+      .from('matches')
+      .update({ status: 'complete', winner_seat: winnerPlayer - 1, ended_at: new Date().toISOString() })
+      .eq('id', matchId);
+    if (error) console.error('[bool] failed to mark match complete', error);
+  }
+
   const channel = supabase
     .channel(`match:${matchId}`)
     .on(
@@ -104,6 +142,9 @@ export async function startOnlineMatch({ matchId, levelId, mySeat, names }) {
   enterOnlineMatch(match, {
     myPlayer,
     onLocalShot,
+    onLocalAdvance,
+    onRematch,
+    onMatchOver,
     cleanup: () => supabase.removeChannel(channel),
   });
 }

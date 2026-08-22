@@ -148,22 +148,18 @@ export function subscribeToRoom(code, onChange) {
 }
 
 /**
- * Notify when a `matches` row appears for this room (i.e. either player has
- * clicked "start match"). Realtime delivers the INSERT to every subscriber
- * on the room -- including whoever made it -- so both clients transition
- * into the match from the same event; the "start match" button itself does
- * nothing but the insert. Also checks for an already-existing active match
- * once, in case one was created a moment before this subscription was set
- * up. Fires at most once; returns an unsubscribe function.
+ * Notify every time a `matches` row appears for this room -- the initial
+ * "start match" and every later rematch alike. Realtime delivers the INSERT
+ * to every subscriber on the room -- including whoever made it -- so both
+ * clients transition from the same event; the button that creates the row
+ * does nothing else. Also checks once for an already-existing active match,
+ * in case one was created a moment before this subscription was set up.
+ * Fires on every match (the caller is responsible for ignoring one it's
+ * already entered -- see online.js's `activeMatchId` guard). Returns an
+ * unsubscribe function; keep this alive for the whole online session (not
+ * just the lobby) so a later rematch still gets picked up.
  */
 export function subscribeToMatchStart(code, onMatchStart) {
-  let handled = false;
-  const fire = (row) => {
-    if (handled || !row) return;
-    handled = true;
-    onMatchStart(row);
-  };
-
   async function checkExisting() {
     const { data } = await supabase
       .from('matches')
@@ -173,7 +169,7 @@ export function subscribeToMatchStart(code, onMatchStart) {
       .order('started_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    fire(data);
+    if (data) onMatchStart(data);
   }
 
   const channel = supabase
@@ -181,7 +177,7 @@ export function subscribeToMatchStart(code, onMatchStart) {
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'matches', filter: `room_id=eq.${code}` },
-      (payload) => fire(payload.new),
+      (payload) => onMatchStart(payload.new),
     )
     .subscribe();
 
